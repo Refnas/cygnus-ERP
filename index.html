@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Document Manager</title>
+    <link rel="stylesheet" href="style.css?v=8.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Firebase (classic script tags — works reliably from file:// in Electron) -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+    <!-- Camera Barcode & QR Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <script>
+        let db = null;
+        let auth = null;
+        try {
+            const firebaseConfig = {
+                apiKey: "AIzaSyD4v1DjyC4_nI6Y_6HNV_jcr_w4cltw_9A",
+                authDomain: "cygnus-business-manager-f3cb0.firebaseapp.com",
+                databaseURL: "https://cygnus-business-manager-f3cb0-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "cygnus-business-manager-f3cb0",
+                storageBucket: "cygnus-business-manager-f3cb0.firebasestorage.app",
+                messagingSenderId: "1071893620634",
+                appId: "1:1071893620634:web:b37af665697ff064747c23"
+            };
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            auth = firebase.auth();
+        } catch(err) {
+            console.warn("Firebase init notice:", err);
+        }
+    </script>
+
+    <script src="script.js?v=8.0" defer></script>
+
+<body>
+    <!-- Mobile Navigation Bar -->
+    <div class="mobile-navbar">
+        <button id="menu-toggle" class="menu-toggle-btn" aria-label="Toggle Navigation Menu">
+            <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
+        </button>
+        <div class="mobile-brand">Cygnus ERP</div>
+    </div>
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <h1>Cygnus Technology Systems</h1>
+                <span>Business Document Manager</span>
+                <div id="sync-status" class="sync-badge sync-checking" title="Sync Status">
+                    <span class="sync-dot"></span> <span id="sync-text">Checking Sync...</span>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <h3>Menu</h3>
+                <div class="nav-item active" data-section="dashboard">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" data-section="quotations">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"></path></svg>
+                    <span>Quotations</span>
+                </div>
+                <div class="nav-item" data-section="delivery-notes">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"></path></svg>
+                    <span>Delivery Notes</span>
+                </div>
+                <div class="nav-item" data-section="invoices">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
+                    <span>Invoices</span>
+                </div>
+                <div class="nav-item" data-section="receipt-vouchers">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H4zm3 3h10v2H7V7zm0 4h10v2H7v-2zm0 4h7v2H7v-2z" clip-rule="evenodd"></path></svg>
+                    <span>Receipt Vouchers</span>
+                </div>
+                <div class="nav-item" data-section="statements">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 5a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h4a1 1 0 110 2H9a1 1 0 01-1-1zm0 3a1 1 0 011-1h4a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
+                    <span>Statements & Tax</span>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <h3>Settings</h3>
+                <div class="nav-item" data-section="customers">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path></svg>
+                    <span>Customers</span>
+                </div>
+                <div class="nav-item" data-section="products">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a4 4 0 00-4 4v1H5a1 1 0 00-.994.89l-1 9A1 1 0 004 18h12a1 1 0 00.994-1.11l-1-9A1 1 0 0015 7h-1V6a4 4 0 00-4-4zm2 5V6a2 2 0 10-4 0v1h4zm-6 3a1 1 0 112 0 1 1 0 01-2 0zm7-1a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"></path></svg>
+                    <span>Products</span>
+                </div>
+                <div class="nav-item" data-section="company">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"></path></svg>
+                    <span>Company Info</span>
+                </div>
+            </div>
+
+            <div class="user-profile-section" style="margin-top: 30px; padding: 15px 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <div id="user-email-display" style="font-size: 0.8rem; color: rgba(255,255,255,0.8); margin-bottom: 10px; word-break: break-all; font-weight: 500;">
+                    Guest Mode
+                </div>
+                <button id="logout-btn" class="btn btn-danger" style="width: 100%; padding: 8px 12px; font-size: 0.82rem; justify-content: center;" onclick="logoutUser()">
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"></path></svg>
+                    Sign Out
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active">
+                <div class="header">
+                    <h2>Dashboard</h2>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <h4>Total Quotations</h4>
+                        <div class="value" id="stat-quotations">0</div>
+                    </div>
+                    <div class="stat-card green">
+                        <h4>Total Invoices</h4>
+                        <div class="value" id="stat-invoices">0</div>
+                    </div>
+                    <div class="stat-card orange">
+                        <h4>Pending Payments</h4>
+                        <div class="value" id="stat-pending">AED 0</div>
+                    </div>
+                    <div class="stat-card purple">
+                        <h4>This Month Revenue</h4>
+                        <div class="value" id="stat-revenue">AED 0</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Recent Documents</h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Document</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-docs-table">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #888;">No documents yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quotations Section -->
+            <section id="quotations" class="section">
+                <div class="header">
+                    <h2>Quotations</h2>
+                    <button class="btn btn-primary" onclick="openDocumentModal('quotation')">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        New Quotation
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-quotations" class="table-search-input" placeholder="Search quotations by number, customer, status, amount..." oninput="refreshQuotationsTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Quote #</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Valid Until</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotations-table">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: #888;">No quotations yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Delivery Notes Section -->
+            <section id="delivery-notes" class="section">
+                <div class="header">
+                    <h2>Delivery Notes</h2>
+                    <button class="btn btn-primary" onclick="openDocumentModal('delivery')">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        New Delivery Note
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-delivery-notes" class="table-search-input" placeholder="Search delivery notes by number, customer, reference..." oninput="refreshDeliveryNotesTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>DN #</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Reference</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="delivery-notes-table">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; color: #888;">No delivery notes yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Invoices Section -->
+            <section id="invoices" class="section">
+                <div class="header">
+                    <h2>Invoices</h2>
+                    <button class="btn btn-primary" onclick="openDocumentModal('invoice')">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        New Invoice
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-invoices" class="table-search-input" placeholder="Search invoices by number, customer, status, amount..." oninput="refreshInvoicesTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Due Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoices-table">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: #888;">No invoices yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Receipt Vouchers Section -->
+            <section id="receipt-vouchers" class="section">
+                <div class="header">
+                    <h2>Receipt Vouchers</h2>
+                    <button class="btn btn-primary" onclick="openReceiptVoucherModal()">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        New Receipt Voucher
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-receipt-vouchers" class="table-search-input" placeholder="Search receipt vouchers by number, customer, mode, ref..." oninput="refreshReceiptVouchersTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Voucher #</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Payment Mode</th>
+                                    <th>Ref / Cheque #</th>
+                                    <th>Amount</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receipt-vouchers-table">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: #888;">No receipt vouchers yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Customers Section -->
+            <section id="customers" class="section">
+                <div class="header">
+                    <h2>Customers</h2>
+                    <button class="btn btn-primary" onclick="openCustomerModal()">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        Add Customer
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-customers" class="table-search-input" placeholder="Search customers by name, email, phone, address..." oninput="refreshCustomersTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customers-table">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #888;">No customers yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Products Section -->
+            <section id="products" class="section">
+                <div class="header">
+                    <h2>Products & Services</h2>
+                    <button class="btn btn-primary" onclick="openProductModal()">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        Add Product
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-products" class="table-search-input" placeholder="Search products by name, description, price..." oninput="refreshProductsTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Unit Price</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="products-table">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: #888;">No products yet</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Company Section -->
+            <section id="company" class="section">
+                <div class="header">
+                    <h2>Company Information</h2>
+                </div>
+
+                <div class="card">
+                    <form id="company-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Company Name</label>
+                                <input type="text" id="company-name" placeholder="Your Company Name">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="company-email" placeholder="company@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="text" id="company-phone" placeholder="+1 234 567 890">
+                            </div>
+                            <div class="form-group">
+                                <label>Tax ID / VAT Number</label>
+                                <input type="text" id="company-tax" placeholder="Tax ID">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Address</label>
+                            <textarea id="company-address" rows="3" placeholder="Full company address"></textarea>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Currency Symbol</label>
+                                <input type="text" id="company-currency" placeholder="$" maxlength="3">
+                            </div>
+                            <div class="form-group">
+                                <label>VAT %</label>
+                                <input type="number" id="company-tax-rate" placeholder="0" min="0" max="100" step="0.1">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Bank Details / Payment Instructions</label>
+                            <textarea id="company-bank" rows="3" placeholder="Bank account details for payments"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Terms & Conditions (appears on documents)</label>
+                            <textarea id="company-terms" rows="4" placeholder="Payment terms, warranty info, etc."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-success">Save Company Info</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Statements & Tax Section -->
+            <section id="statements" class="section">
+                <div class="header">
+                    <h2>Statements & Tax Reports</h2>
+                    <div class="header-actions" style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="printActiveStatement()">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"></path></svg>
+                            Print Statement
+                        </button>
+                        <button class="btn btn-success" onclick="exportStatementCSV()">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                            Export Excel / CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub Navigation Tabs -->
+                <div class="tabs" style="margin-bottom: 20px;">
+                    <div class="tab active" data-stmt-tab="soa" onclick="switchStatementTab('soa')">Customer Statement (SOA)</div>
+                    <div class="tab" data-stmt-tab="vat" onclick="switchStatementTab('vat')">VAT Tax Report (5%)</div>
+                    <div class="tab" data-stmt-tab="ledger" onclick="switchStatementTab('ledger')">Financial Summary & Ledger</div>
+                </div>
+
+                <!-- Tab 1: Customer SOA -->
+                <div id="stmt-tab-soa" class="stmt-tab-content" style="display: block;">
+                    <div class="card">
+                        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Select Customer</label>
+                                <select id="soa-customer-select" onchange="generateCustomerSOA()">
+                                    <option value="">-- All Customers (Overall SOA) --</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>From Date</label>
+                                <input type="date" id="soa-from-date" onchange="generateCustomerSOA()">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>To Date</label>
+                                <input type="date" id="soa-to-date" onchange="generateCustomerSOA()">
+                            </div>
+                        </div>
+
+                        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div class="stat-card blue" style="padding: 15px;">
+                                <h4>Total Invoiced</h4>
+                                <div class="value" id="soa-total-invoiced" style="font-size: 1.4rem;">AED 0.00</div>
+                            </div>
+                            <div class="stat-card green" style="padding: 15px;">
+                                <h4>Total Payments Rec'd</h4>
+                                <div class="value" id="soa-total-received" style="font-size: 1.4rem;">AED 0.00</div>
+                            </div>
+                            <div class="stat-card orange" style="padding: 15px;">
+                                <h4>Closing Balance Due</h4>
+                                <div class="value" id="soa-closing-balance" style="font-size: 1.4rem;">AED 0.00</div>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Doc Type</th>
+                                        <th>Reference #</th>
+                                        <th>Particulars / Details</th>
+                                        <th style="text-align: right;">Debit (Invoiced)</th>
+                                        <th style="text-align: right;">Credit (Paid)</th>
+                                        <th style="text-align: right;">Running Balance</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="soa-table-body">
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: #888;">Select a customer to generate Statement of Account</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: VAT Tax Report -->
+                <div id="stmt-tab-vat" class="stmt-tab-content" style="display: none;">
+                    <div class="card">
+                        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Quick Period</label>
+                                <select id="vat-period-select" onchange="applyVATPeriodFilter()">
+                                    <option value="all">All Time</option>
+                                    <option value="this-month">This Month</option>
+                                    <option value="last-month">Last Month</option>
+                                    <option value="this-quarter">This Quarter (Q1-Q4)</option>
+                                    <option value="this-year">This Year</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>From Date</label>
+                                <input type="date" id="vat-from-date" onchange="generateVATReport()">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>To Date</label>
+                                <input type="date" id="vat-to-date" onchange="generateVATReport()">
+                            </div>
+                        </div>
+
+                        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div class="stat-card blue" style="padding: 15px;">
+                                <h4>Total Taxable Sales</h4>
+                                <div class="value" id="vat-taxable-sales" style="font-size: 1.4rem;">AED 0.00</div>
+                            </div>
+                            <div class="stat-card green" style="padding: 15px;">
+                                <h4>Output VAT Collected (5%)</h4>
+                                <div class="value" id="vat-tax-collected" style="font-size: 1.4rem;">AED 0.00</div>
+                            </div>
+                            <div class="stat-card purple" style="padding: 15px;">
+                                <h4>Total Gross Invoiced</h4>
+                                <div class="value" id="vat-gross-invoiced" style="font-size: 1.4rem;">AED 0.00</div>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Invoice #</th>
+                                        <th>Date</th>
+                                        <th>Customer</th>
+                                        <th>Tax TRN Number</th>
+                                        <th style="text-align: right;">Taxable Amount</th>
+                                        <th style="text-align: right;">VAT Rate</th>
+                                        <th style="text-align: right;">VAT Amount (5%)</th>
+                                        <th style="text-align: right;">Total Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vat-table-body">
+                                    <tr>
+                                        <td colspan="8" style="text-align: center; color: #888;">No tax records found for selected period</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Financial Summary & Ledger -->
+                <div id="stmt-tab-ledger" class="stmt-tab-content" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Monthly Sales, Tax & Collections Ledger</h3>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Month / Period</th>
+                                        <th style="text-align: right;">Invoices Count</th>
+                                        <th style="text-align: right;">Total Sales (Subtotal)</th>
+                                        <th style="text-align: right;">VAT Collected (5%)</th>
+                                        <th style="text-align: right;">Total Invoiced</th>
+                                        <th style="text-align: right;">Collections Rec'd</th>
+                                        <th style="text-align: right;">Net Receivable</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ledger-table-body">
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; color: #888;">No financial records found</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Document Modal -->
+    <div class="modal-overlay" id="document-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">New Document</h3>
+                <button class="modal-close" onclick="closeModal('document-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="document-form">
+                    <input type="hidden" id="doc-type">
+                    <input type="hidden" id="doc-id">
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Document Number</label>
+                            <input type="text" id="doc-number" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" id="doc-date" required>
+                        </div>
+                        <div class="form-group" id="validity-group">
+                            <label>Valid Until</label>
+                            <input type="date" id="doc-valid-until">
+                        </div>
+                        <div class="form-group" id="due-date-group">
+                            <label>Due Date</label>
+                            <input type="date" id="doc-due-date">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Customer</label>
+                        <div class="customer-select-wrapper">
+                            <input type="text" id="customer-search" placeholder="Search or select customer..." autocomplete="off">
+                            <input type="hidden" id="selected-customer-id">
+                            <div class="customer-dropdown" id="customer-dropdown"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="reference-group">
+                        <label>Reference (e.g., PO Number, Quote Number)</label>
+                        <input type="text" id="doc-reference" placeholder="Reference number">
+                    </div>
+
+                    <h4 style="margin: 20px 0 15px;">Line Items</h4>
+                    <div class="table-container">
+                        <table class="line-items-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">Description</th>
+                                    <th style="width: 15%;">Quantity</th>
+                                    <th style="width: 20%;">Unit Price</th>
+                                    <th style="width: 20%;">Total</th>
+                                    <th style="width: 15%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="line-items-body">
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="add-line-btn" onclick="addLineItem()">+ Add Line Item</button>
+
+                    <div class="totals-section">
+                        <div class="totals-box">
+                            <div class="totals-row">
+                                <span>Subtotal</span>
+                                <span id="subtotal"> 0.00</span>
+                            </div>
+                            <div class="totals-row">
+                                <span>Tax (<span id="tax-rate-display">0</span>%)</span>
+                                <span id="tax-amount">$0.00</span>
+                            </div>
+                            <div class="totals-row total">
+                                <span>Total</span>
+                                <span id="grand-total">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label>Notes</label>
+                        <textarea id="doc-notes" rows="3" placeholder="Additional notes..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('document-modal')">Cancel</button>
+                <button class="btn btn-success" onclick="saveDocument()">Save Document</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Modal -->
+    <div class="modal-overlay" id="customer-modal">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Add Customer</h3>
+                <button class="modal-close" onclick="closeModal('customer-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="customer-form">
+                    <input type="hidden" id="customer-id">
+                    <div class="form-group">
+                        <label>Customer Name *</label>
+                        <input type="text" id="customer-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="customer-email">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="text" id="customer-phone">
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea id="customer-address" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Tax ID</label>
+                        <input type="text" id="customer-tax-id">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('customer-modal')">Cancel</button>
+                <button class="btn btn-success" onclick="saveCustomer()">Save Customer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div class="modal-overlay" id="product-modal">
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Add Product</h3>
+                <button class="modal-close" onclick="closeModal('product-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="product-form">
+                    <input type="hidden" id="product-id">
+                    <div class="form-group">
+                        <label>Product/Service Name *</label>
+                        <input type="text" id="product-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="product-description" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Unit Price *</label>
+                        <input type="number" id="product-price" step="0.01" min="0" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('product-modal')">Cancel</button>
+                <button class="btn btn-success" onclick="saveProduct()">Save Product</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Receipt Voucher Modal -->
+    <div class="modal-overlay" id="receipt-voucher-modal">
+        <div class="modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3 id="rv-modal-title">New Receipt Voucher</h3>
+                <button class="modal-close" onclick="closeModal('receipt-voucher-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="receipt-voucher-form">
+                    <input type="hidden" id="rv-id">
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Voucher Number</label>
+                            <input type="text" id="rv-number" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Date *</label>
+                            <input type="date" id="rv-date" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Received With Thanks From (Customer) *</label>
+                        <div class="customer-select-wrapper">
+                            <input type="text" id="rv-customer-search" placeholder="Search or select customer..." autocomplete="off">
+                            <input type="hidden" id="rv-selected-customer-id">
+                            <div class="customer-dropdown" id="rv-customer-dropdown"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Payment Mode *</label>
+                            <select id="rv-payment-mode" onchange="toggleRvPaymentFields()">
+                                <option value="Cash">Cash</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (AED) *</label>
+                            <input type="number" id="rv-amount" step="0.01" min="0.01" placeholder="0.00" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid" id="rv-cheque-fields" style="display: none;">
+                        <div class="form-group">
+                            <label id="rv-ref-label">Cheque / Ref No.</label>
+                            <input type="text" id="rv-cheque-no" placeholder="e.g. CHQ-123456">
+                        </div>
+                        <div class="form-group">
+                            <label id="rv-bank-label">Bank Name / Date</label>
+                            <input type="text" id="rv-bank-name" placeholder="e.g. ADCB / 15-09-2026">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Received For / Against (Invoice / PO Ref)</label>
+                        <input type="text" id="rv-reference" placeholder="e.g. Invoice # CYG-INV-OP-26-0001">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Particulars / Description</label>
+                        <textarea id="rv-notes" rows="3" placeholder="Being payment received towards..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('receipt-voucher-modal')">Cancel</button>
+                <button class="btn btn-success" onclick="saveReceiptVoucher()">Save Receipt Voucher</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div class="modal-overlay" id="preview-modal">
+        <div class="modal preview-modal-card" style="max-width: 880px;">
+            <div class="modal-header preview-modal-header">
+                <h3>Document Preview</h3>
+                <div class="preview-header-actions" style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="printDocument()">Print</button>
+                    <button type="button" class="btn btn-success btn-sm" onclick="downloadPDF()">Download PDF</button>
+                    <button type="button" class="modal-close" onclick="closeModal('preview-modal')" style="margin-left: 6px;">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body preview-modal-body" style="padding: 0; background: #f1f5f9;">
+                <div id="document-preview-content"></div>
+            </div>
+            <div class="modal-footer preview-modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('preview-modal')">Close</button>
+                <button type="button" class="btn btn-primary" onclick="printDocument()">Print</button>
+                <button type="button" class="btn btn-success" onclick="downloadPDF()">Download PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Overlay Modal (Sign In Only) -->
+    <div class="auth-overlay" id="auth-overlay" style="display: none;">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">Cygnus ERP</div>
+                <div class="auth-subtitle" style="margin-top: 5px; font-weight: 500; color: #64748b;">Sign in to access system</div>
+            </div>
+
+            <!-- Email Login Form -->
+            <form id="login-form" class="auth-form-content" onsubmit="handleLoginSubmit(event)">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="auth-login-email" placeholder="admin@cygnusts.ae" required>
+                </div>
+                <div class="form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label style="margin-bottom: 0;">Password</label>
+                        <a href="#" onclick="showForgotPasswordCard(event)" style="font-size: 0.8rem; color: #0284c7; text-decoration: none; font-weight: 600;">Forgot Password?</a>
+                    </div>
+                    <div class="password-input-wrapper" style="position: relative; display: flex; align-items: center;">
+                        <input type="password" id="auth-login-password" placeholder="••••••••" required style="width: 100%; padding-right: 40px;">
+                        <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('auth-login-password', this)" title="Show/Hide Password" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: #64748b; padding: 4px; display: flex; align-items: center;">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="auth-login-error" class="auth-error-msg" style="display: none;"></div>
+                <button type="submit" class="btn btn-primary btn-auth" style="width: 100%; margin-top: 10px;">Sign In</button>
+            </form>
+
+            <!-- Dedicated Forgot Password Card -->
+            <div id="forgot-password-card" class="auth-form-content" style="display: none;">
+                <div style="text-align: center; margin-bottom: 12px;">
+                    <h4 style="font-size: 1.1rem; color: #0f172a; margin-bottom: 6px;">Reset Password</h4>
+                    <p style="font-size: 0.85rem; color: #64748b;">Enter your email address and we will send you a secure link to reset your password.</p>
+                </div>
+                <div class="form-group">
+                    <label>Account Email Address</label>
+                    <input type="email" id="forgot-email-input" placeholder="name@company.com">
+                </div>
+                <div id="forgot-status-msg" class="auth-error-msg" style="display: none;"></div>
+                <button type="button" onclick="handleSendPasswordReset(event)" class="btn btn-primary btn-auth" style="width: 100%; margin-top: 10px;">Send Reset Link</button>
+                <button type="button" onclick="hideForgotPasswordCard()" class="btn btn-secondary" style="width: 100%; margin-top: 8px; font-size: 0.85rem;">Back to Sign In</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Barcode & Serial Scanner Modal -->
+    <div class="modal-overlay" id="scanner-modal">
+        <div class="modal" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>📷 Scan Barcode / Serial Number</h3>
+                <button type="button" class="modal-close" onclick="closeCameraScanner()">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align: center; padding: 15px;">
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
+                    Position barcode or QR code in camera view.
+                </p>
+                <div id="barcode-reader" style="width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 250px;"></div>
+                <div id="scanner-result-msg" style="margin-top: 10px; font-weight: 600; color: #16a34a; font-size: 0.9rem;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeCameraScanner()">Cancel / Close</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
