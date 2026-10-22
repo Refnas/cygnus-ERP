@@ -87,6 +87,22 @@
             </div>
 
             <div class="nav-section">
+                <h3>Inventory</h3>
+                <div class="nav-item" data-section="stock">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z"></path><path fill-rule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd"></path></svg>
+                    <span>Stock</span>
+                </div>
+                <div class="nav-item" data-section="purchase-invoices">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 000 2h14a1 1 0 100-2H3zm0 4a1 1 0 000 2h14a1 1 0 100-2H3zm0 4a1 1 0 100 2h14a1 1 0 100-2H3z" clip-rule="evenodd"></path></svg>
+                    <span>Purchase Invoices</span>
+                </div>
+                <div class="nav-item" data-section="vendors">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+                    <span>Vendors</span>
+                </div>
+            </div>
+
+            <div class="nav-section">
                 <h3>Settings</h3>
                 <div class="nav-item" data-section="customers">
                     <svg fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path></svg>
@@ -607,6 +623,132 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Stock Section -->
+            <section id="stock" class="section">
+                <div class="header">
+                    <h2>Stock</h2>
+                </div>
+
+                <!-- Stock summary cards -->
+                <div class="stats-grid" style="margin-bottom: 20px;">
+                    <div class="stat-card blue">
+                        <h4>Total Products</h4>
+                        <div class="value" id="stock-stat-products">0</div>
+                    </div>
+                    <div class="stat-card green">
+                        <h4>In Stock Items</h4>
+                        <div class="value" id="stock-stat-instock">0</div>
+                    </div>
+                    <div class="stat-card orange">
+                        <h4>Low Stock (≤5)</h4>
+                        <div class="value" id="stock-stat-low">0</div>
+                    </div>
+                    <div class="stat-card purple">
+                        <h4>Out of Stock</h4>
+                        <div class="value" id="stock-stat-out">0</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                        <h3>Stock Levels</h3>
+                        <button class="btn btn-secondary" style="font-size:0.82rem;" onclick="openStockAdjustModal()">
+                            Adjust Stock Manually
+                        </button>
+                    </div>
+                    <div class="table-search-bar">
+                        <input type="text" id="search-stock" class="table-search-input" placeholder="Search products..." oninput="refreshStockTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Description</th>
+                                    <th>Unit Price</th>
+                                    <th style="text-align:center;">Stock Qty</th>
+                                    <th style="text-align:center;">Status</th>
+                                    <th>Last Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table">
+                                <tr><td colspan="7" style="text-align:center; color:#888;">No products found</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Purchase Invoices Section -->
+            <section id="purchase-invoices" class="section">
+                <div class="header">
+                    <h2>Purchase Invoices</h2>
+                    <button class="btn btn-primary" onclick="openPurchaseInvoiceModal()">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        New Purchase Invoice
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-purchase" class="table-search-input" placeholder="Search by invoice no, vendor, date..." oninput="refreshPurchaseTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Vendor</th>
+                                    <th>Date</th>
+                                    <th>Items</th>
+                                    <th style="text-align:right;">Total</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="purchase-table">
+                                <tr><td colspan="6" style="text-align:center; color:#888;">No purchase invoices yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vendors Section -->
+            <section id="vendors" class="section">
+                <div class="header">
+                    <h2>Vendors</h2>
+                    <button class="btn btn-primary" onclick="openVendorModal()">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                        New Vendor
+                    </button>
+                </div>
+                <div class="card">
+                    <div class="table-search-bar">
+                        <input type="text" id="search-vendors" class="table-search-input" placeholder="Search vendors by name, email, phone..." oninput="refreshVendorsTable(this.value)">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Vendor Name</th>
+                                    <th>Contact Person</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Tax / TRN</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vendors-table">
+                                <tr><td colspan="7" style="text-align:center; color:#888;">No vendors yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
 
@@ -660,11 +802,12 @@
                         <table class="line-items-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 30%;">Description</th>
-                                    <th style="width: 15%;">Quantity</th>
-                                    <th style="width: 20%;">Unit Price</th>
-                                    <th style="width: 20%;">Total</th>
-                                    <th style="width: 15%;"></th>
+                                    <th style="width: 35%;">Description</th>
+                                    <th id="th-serial-header" style="width: 25%;">S/N / Barcode</th>
+                                    <th style="width: 10%;">Quantity</th>
+                                    <th style="width: 13%;">Unit Price</th>
+                                    <th style="width: 12%;">Total</th>
+                                    <th style="width: 5%;"></th>
                                 </tr>
                             </thead>
                             <tbody id="line-items-body">
@@ -917,6 +1060,169 @@
         </div>
     </div>
 
+    <!-- Vendor Modal -->
+    <div class="modal-overlay" id="vendor-modal">
+        <div class="modal" style="max-width: 540px;">
+            <div class="modal-header">
+                <h3 id="vendor-modal-title">New Vendor</h3>
+                <button class="modal-close" onclick="closeModal('vendor-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="vendor-id">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Vendor / Company Name <span style="color:#ef4444;">*</span></label>
+                        <input type="text" id="vendor-name" placeholder="e.g. ABC Suppliers LLC">
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Person</label>
+                        <input type="text" id="vendor-contact" placeholder="Contact person name">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="vendor-email" placeholder="vendor@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="text" id="vendor-phone" placeholder="+971 XX XXX XXXX">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Address</label>
+                    <textarea id="vendor-address" rows="2" placeholder="Vendor address..."></textarea>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Tax / TRN Number</label>
+                        <input type="text" id="vendor-tax" placeholder="Tax registration number">
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Terms</label>
+                        <input type="text" id="vendor-terms" placeholder="e.g. Net 30, COD">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="vendor-notes" rows="2" placeholder="Any additional notes..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('vendor-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveVendor()">Save Vendor</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Purchase Invoice Modal -->
+    <div class="modal-overlay" id="purchase-invoice-modal">
+        <div class="modal" style="max-width: 780px;">
+            <div class="modal-header">
+                <h3 id="purchase-modal-title">New Purchase Invoice</h3>
+                <button class="modal-close" onclick="closeModal('purchase-invoice-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="pi-id">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Invoice Number</label>
+                        <input type="text" id="pi-number" placeholder="e.g. VENDOR-INV-001">
+                    </div>
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="pi-date">
+                    </div>
+                    <div class="form-group">
+                        <label>Vendor / Supplier <span style="color:#ef4444;">*</span>
+                            <a href="#" onclick="openVendorModal(); return false;" style="font-size:0.78rem; color:#2563eb; margin-left:8px; text-decoration:none;">+ Add New Vendor</a>
+                        </label>
+                        <select id="pi-vendor" style="width:100%; padding:9px 12px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.9rem;">
+                            <option value="">Select vendor...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Reference / PO Number</label>
+                        <input type="text" id="pi-reference" placeholder="Optional reference">
+                    </div>
+                </div>
+
+                <div style="margin-top: 18px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                        <label style="font-weight:600; color:#374151;">Items Purchased</label>
+                        <button type="button" class="btn btn-secondary" style="font-size:0.8rem; padding:5px 12px;" onclick="addPurchaseLineItem()">+ Add Item</button>
+                    </div>
+                    <div class="table-container" style="max-height: 280px; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:35%;">Product</th>
+                                    <th style="width:15%; text-align:center;">Qty</th>
+                                    <th style="width:20%; text-align:right;">Unit Cost</th>
+                                    <th style="width:20%; text-align:right;">Total</th>
+                                    <th style="width:10%;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="pi-line-items">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="text-align:right; margin-top:12px; font-weight:700; font-size:1rem; color:#0f172a;">
+                        Grand Total: <span id="pi-grand-total" style="color:#2563eb;">AED 0.00</span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top:14px;">
+                    <label>Notes</label>
+                    <textarea id="pi-notes" rows="2" placeholder="Optional notes or remarks..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('purchase-invoice-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="savePurchaseInvoice()">Save & Update Stock</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock Adjust Modal -->
+    <div class="modal-overlay" id="stock-adjust-modal">
+        <div class="modal" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>Adjust Stock</h3>
+                <button class="modal-close" onclick="closeModal('stock-adjust-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="adj-product-id">
+                <div class="form-group">
+                    <label>Product</label>
+                    <input type="text" id="adj-product-name" readonly style="background:#f1f5f9;">
+                </div>
+                <div class="form-group">
+                    <label>Current Stock Qty</label>
+                    <input type="number" id="adj-current-qty" readonly style="background:#f1f5f9;">
+                </div>
+                <div class="form-group">
+                    <label>Adjustment Type</label>
+                    <select id="adj-type">
+                        <option value="set">Set to exact quantity</option>
+                        <option value="add">Add to current stock</option>
+                        <option value="subtract">Subtract from current stock</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" id="adj-qty" min="0" placeholder="Enter quantity">
+                </div>
+                <div class="form-group">
+                    <label>Reason / Notes</label>
+                    <input type="text" id="adj-reason" placeholder="e.g. Physical count, damage, etc.">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('stock-adjust-modal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveStockAdjustment()">Save Adjustment</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Camera Barcode & Serial Scanner Modal -->
     <div class="modal-overlay" id="scanner-modal">
         <div class="modal" style="max-width: 480px;">
@@ -928,6 +1234,7 @@
                 <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
                     Position barcode or QR code in camera view.
                 </p>
+                <select id="scanner-camera-select" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; margin-bottom: 12px; font-size: 0.85rem; display: none; background-color: #f8fafc;" onchange="switchScannerCamera(this.value)"></select>
                 <div id="barcode-reader" style="width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 250px;"></div>
                 <div id="scanner-result-msg" style="margin-top: 10px; font-weight: 600; color: #16a34a; font-size: 0.9rem;"></div>
             </div>

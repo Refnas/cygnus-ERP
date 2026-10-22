@@ -16,6 +16,9 @@ let data = {
     deliveryNotes: [],
     invoices: [],
     receiptVouchers: [],
+    purchaseInvoices: [],
+    stockLevels: {},      // { productId: { qty, lastUpdated } }
+    vendors: [],         // vendor records
     counters: {
         quotation: 1,
         delivery: 1,
@@ -34,6 +37,9 @@ function ensureDataStructure() {
     if (!Array.isArray(data.deliveryNotes)) data.deliveryNotes = [];
     if (!Array.isArray(data.invoices)) data.invoices = [];
     if (!Array.isArray(data.receiptVouchers)) data.receiptVouchers = [];
+    if (!Array.isArray(data.purchaseInvoices)) data.purchaseInvoices = [];
+    if (!data.stockLevels || typeof data.stockLevels !== 'object') data.stockLevels = {};
+    if (!Array.isArray(data.vendors)) data.vendors = [];
 
     if (!data.counters) {
         data.counters = {
@@ -504,6 +510,11 @@ function openDocumentModal(type, docId = null) {
     document.getElementById('due-date-group').style.display = type === 'invoice' ? 'block' : 'none';
     document.getElementById('reference-group').style.display = type !== 'quotation' ? 'block' : 'none';
 
+    const serialTh = document.getElementById('th-serial-header');
+    if (serialTh) {
+        serialTh.style.display = type === 'quotation' ? 'none' : 'table-cell';
+    }
+
     // Set modal title
     const titles = {
         quotation: 'New Quotation',
@@ -699,6 +710,8 @@ function addLineItem(item = null) {
     }
 
     const initialQty = item && item.quantity ? Math.max(1, parseInt(item.quantity)) : 1;
+    const docTypeElem = document.getElementById('doc-type');
+    const docType = docTypeElem ? docTypeElem.value : 'quotation';
 
     row.innerHTML = `
         <td>
@@ -707,7 +720,7 @@ function addLineItem(item = null) {
                 <div class="product-dropdown"></div>
             </div>
         </td>
-        <td style="min-width: 170px;">
+        <td class="serial-col" style="min-width: 170px; ${docType === 'quotation' ? 'display: none;' : ''}">
             <div class="serials-container" style="display: flex; flex-direction: column; gap: 4px;">
                 <!-- Serial inputs rendered dynamically according to quantity -->
             </div>
@@ -1099,12 +1112,12 @@ function previewDocument(type, id) {
 
     let extraInfo = '';
     if (type === 'quotation' && doc.validUntil) {
-        extraInfo = `<div class="doc-meta-row"><strong>Valid Until:</strong> ${formatDate(doc.validUntil)}</div>`;
+        extraInfo = `<div class="doc-meta-row"><strong>Valid Until:</strong> <span>${formatDate(doc.validUntil)}</span></div>`;
     } else if (type === 'invoice' && doc.dueDate) {
-        extraInfo = `<div class="doc-meta-row"><strong>Due Date:</strong> ${formatDate(doc.dueDate)}</div>`;
+        extraInfo = `<div class="doc-meta-row"><strong>Due Date:</strong> <span>${formatDate(doc.dueDate)}</span></div>`;
     }
     if (doc.reference) {
-        extraInfo += `<div class="doc-meta-row"><strong>Ref:</strong> ${doc.reference}</div>`;
+        extraInfo += `<div class="doc-meta-row"><strong>Ref:</strong> <span>${doc.reference}</span></div>`;
     }
 
     let introHtml = `<p><strong>Dear Sir/Mam,</strong></p><p>Thank you for your valuable inquiry. We are pleased to quote as follows:</p>`;
@@ -1161,7 +1174,7 @@ function previewDocument(type, id) {
                 <div class="doc-number-box">
                     <div class="doc-type-title">${docTitles[type]}</div>
                     <div class="doc-num-row"># ${doc.number}</div>
-                    <div class="doc-date-row"><strong>Date:</strong> ${formatDate(doc.date)}</div>
+                    <div class="doc-date-row"><strong>Date:</strong> <span>${formatDate(doc.date)}</span></div>
                     ${extraInfo}
                 </div>
             </div>
@@ -1173,68 +1186,93 @@ function previewDocument(type, id) {
 
             <!-- Itemized Table -->
             <table class="official-items-table">
-                <thead>
-                    <tr>
-                        <th style="width: 6%; text-align: center;">#</th>
-                        <th style="width: 44%;">DESCRIPTION</th>
-                        <th style="width: 10%; text-align: center;">QTY</th>
-                        <th style="width: 13%; text-align: right;">PRICE</th>
-                        <th style="width: 13%; text-align: right;">VAT (${taxRate}%)</th>
-                        <th style="width: 14%; text-align: right;">TOTAL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${doc.items.map((item, i) => {
-                        const lineSubtotal = item.quantity * item.price;
-                        const lineVatUnit = item.price * (taxRate / 100);
-                        const lineVatTotal = lineSubtotal * (taxRate / 100);
-                        const lineGrandTotal = lineSubtotal + lineVatTotal;
-                        return `
-                            <tr>
-                                <td style="text-align: center;">${i + 1}.</td>
-                                <td>
-                                    <div>${item.description}</div>
-                                    ${(() => {
-                                        const serialList = Array.isArray(item.serialNumbers) && item.serialNumbers.length > 0
-                                            ? item.serialNumbers
-                                            : (item.serialNumber ? item.serialNumber.split(',').map(s => s.trim()).filter(Boolean) : []);
-                                        if (serialList.length > 0) {
-                                            return `<div style="font-size: 0.8rem; color: #475569; margin-top: 3px; font-weight: 500;"><strong>S/N:</strong> ${serialList.join(', ')}</div>`;
-                                        }
-                                        return '';
-                                    })()}
-                                </td>
-                                <td style="text-align: center;">${item.quantity}</td>
-                                <td style="text-align: right;">${currency} ${item.price.toFixed(2)}</td>
-                                <td style="text-align: right;">${currency} ${lineVatUnit.toFixed(2)}</td>
-                                <td style="text-align: right;">${currency} ${lineGrandTotal.toFixed(2)}</td>
-                            </tr>
-                        `;
-                    }).join('')}
-                </tbody>
+                ${type === 'delivery' ? `
+                    <thead>
+                        <tr>
+                            <th style="width: 8%; text-align: center;">#</th>
+                            <th style="width: 74%;">DESCRIPTION</th>
+                            <th style="width: 18%; text-align: center;">QTY</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${doc.items.map((item, i) => {
+                            const serialList = Array.isArray(item.serialNumbers) && item.serialNumbers.length > 0
+                                ? item.serialNumbers
+                                : (item.serialNumber ? item.serialNumber.split(',').map(s => s.trim()).filter(Boolean) : []);
+                            return `
+                                <tr>
+                                    <td style="text-align: center;">${i + 1}.</td>
+                                    <td>
+                                        <div>${item.description}</div>
+                                        ${serialList.length > 0 ? `<div style="font-size: 0.8rem; color: #475569; margin-top: 3px; font-weight: 500;"><strong>S/N:</strong> ${serialList.join(', ')}</div>` : ''}
+                                    </td>
+                                    <td style="text-align: center; font-weight: 600;">${item.quantity}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                ` : `
+                    <thead>
+                        <tr>
+                            <th style="width: 6%; text-align: center;">#</th>
+                            <th style="width: 44%;">DESCRIPTION</th>
+                            <th style="width: 10%; text-align: center;">QTY</th>
+                            <th style="width: 13%; text-align: right;">PRICE</th>
+                            <th style="width: 13%; text-align: right;">VAT (${taxRate}%)</th>
+                            <th style="width: 14%; text-align: right;">TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${doc.items.map((item, i) => {
+                            const lineSubtotal = item.quantity * (item.price || 0);
+                            const lineVatUnit = (item.price || 0) * (taxRate / 100);
+                            const lineVatTotal = lineSubtotal * (taxRate / 100);
+                            const lineGrandTotal = lineSubtotal + lineVatTotal;
+                            const serialList = type === 'quotation' ? [] : (Array.isArray(item.serialNumbers) && item.serialNumbers.length > 0
+                                ? item.serialNumbers
+                                : (item.serialNumber ? item.serialNumber.split(',').map(s => s.trim()).filter(Boolean) : []));
+                            return `
+                                <tr>
+                                    <td style="text-align: center;">${i + 1}.</td>
+                                    <td>
+                                        <div>${item.description}</div>
+                                        ${serialList.length > 0 ? `<div style="font-size: 0.8rem; color: #475569; margin-top: 3px; font-weight: 500;"><strong>S/N:</strong> ${serialList.join(', ')}</div>` : ''}
+                                    </td>
+                                    <td style="text-align: center;">${item.quantity}</td>
+                                    <td style="text-align: right;">${currency} ${(item.price || 0).toFixed(2)}</td>
+                                    <td style="text-align: right;">${currency} ${lineVatUnit.toFixed(2)}</td>
+                                    <td style="text-align: right;">${currency} ${lineGrandTotal.toFixed(2)}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                `}
             </table>
 
-            <!-- Summary Totals -->
-            <div class="official-totals-wrapper">
-                <div class="official-totals-table">
-                    <div class="total-row">
-                        <span class="total-label">SUB TOTAL</span>
-                        <span class="total-val">${currency} ${doc.subtotal.toFixed(2)}</span>
-                    </div>
-                    <div class="total-row">
-                        <span class="total-label">VAT</span>
-                        <span class="total-val">${currency} ${doc.tax.toFixed(2)}</span>
-                    </div>
-                    <div class="total-row grand-total">
-                        <span class="total-label">GRAND TOTAL</span>
-                        <span class="total-val">${currency} ${doc.total.toFixed(2)}</span>
+            ${type === 'delivery' ? '' : `
+                <!-- Summary Totals -->
+                <div class="official-totals-wrapper">
+                    <div class="official-totals-table">
+                        <div class="total-row">
+                            <span class="total-label">SUB TOTAL</span>
+                            <span class="total-val">${currency} ${(doc.subtotal || 0).toFixed(2)}</span>
+                        </div>
+                        <div class="total-row">
+                            <span class="total-label">VAT</span>
+                            <span class="total-val">${currency} ${(doc.tax || 0).toFixed(2)}</span>
+                        </div>
+                        <div class="total-row grand-total">
+                            <span class="total-label">GRAND TOTAL</span>
+                            <span class="total-val">${currency} ${(doc.total || 0).toFixed(2)}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            `}
 
             <!-- Closing Note & Warranty -->
             <div class="doc-closing-block">
                 ${closingHtml}
+                ${doc.notes ? `<div class="doc-user-notes" style="margin: 8px 0; font-size: 0.92rem; color: #1e293b;"><strong>Notes:</strong> ${doc.notes.replace(/\n/g, '<br>')}</div>` : ''}
                 <div class="warranty-text">
                     <strong>Warranty:</strong> ${data.company.terms || 'The new hardware is covered for 1 year. Software or service will be limited.'}
                 </div>
@@ -1352,6 +1390,10 @@ function refreshAllTables() {
     refreshDeliveryNotesTable();
     refreshInvoicesTable();
     refreshReceiptVouchersTable();
+    refreshStockTable();
+    refreshPurchaseTable();
+    refreshVendorsTable();
+    populateVendorDropdown();
     populateSOASelect();
     generateCustomerSOA();
     generateVATReport();
@@ -2310,17 +2352,46 @@ function formatDate(dateStr) {
 
 // --- FIREBASE AUTHENTICATION & PHONE OTP HANDLERS ---
 function setupAuthListener() {
-    if (typeof firebase !== 'undefined' && firebase.auth) {
-        firebase.auth().onAuthStateChanged((user) => {
-            const overlay = document.getElementById('auth-overlay');
-            if (user) {
-                if (overlay) overlay.style.display = 'none';
-                updateUserProfileUI(user);
-            } else {
-                if (overlay) overlay.style.display = 'flex';
-            }
+    if (typeof firebase === 'undefined' || !firebase.auth) return;
+
+    const auth = firebase.auth();
+
+    // Force SESSION persistence so the token is never stored in IndexedDB/localStorage
+    auth.setPersistence(firebase.auth.Auth.Persistence.SESSION)
+        .then(() => {
+            // After persistence is switched, check if there's already a cached user
+            // (from old LOCAL persistence). If there's no sessionStorage marker for
+            // this tab, that user came from a remembered session – sign them out.
+            auth.onAuthStateChanged((user) => {
+                const overlay = document.getElementById('auth-overlay');
+                const tabSessionActive = sessionStorage.getItem('cygnus_session_active');
+
+                if (user && !tabSessionActive) {
+                    // Old remembered login (phone/another device) – force logout
+                    auth.signOut().then(() => {
+                        if (overlay) overlay.style.display = 'flex';
+                    });
+                } else if (user) {
+                    if (overlay) overlay.style.display = 'none';
+                    updateUserProfileUI(user);
+                } else {
+                    if (overlay) overlay.style.display = 'flex';
+                }
+            });
+        })
+        .catch((err) => {
+            console.warn('Error setting SESSION persistence:', err);
+            // Fallback: just listen without forcing persistence change
+            auth.onAuthStateChanged((user) => {
+                const overlay = document.getElementById('auth-overlay');
+                if (user) {
+                    if (overlay) overlay.style.display = 'none';
+                    updateUserProfileUI(user);
+                } else {
+                    if (overlay) overlay.style.display = 'flex';
+                }
+            });
         });
-    }
 }
 
 function updateUserProfileUI(user) {
@@ -2449,8 +2520,14 @@ function handleLoginSubmit(e) {
         return;
     }
 
-    firebase.auth().signInWithEmailAndPassword(email, pass)
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION)
+        .then(() => {
+            return firebase.auth().signInWithEmailAndPassword(email, pass);
+        })
         .then((userCredential) => {
+            // Mark this tab as having an active session so the auth listener
+            // knows this is a legitimate within-tab login (not a stale remembered session)
+            sessionStorage.setItem('cygnus_session_active', '1');
             const overlay = document.getElementById('auth-overlay');
             if (overlay) overlay.style.display = 'none';
         })
@@ -2467,9 +2544,671 @@ function handleLoginSubmit(e) {
 
 function logoutUser() {
     if (typeof firebase !== 'undefined' && firebase.auth) {
+        sessionStorage.removeItem('cygnus_session_active');
         firebase.auth().signOut().then(() => {
             const overlay = document.getElementById('auth-overlay');
             if (overlay) overlay.style.display = 'flex';
         });
     }
+}
+
+// --- CAMERA BARCODE / QR SCANNER HANDLERS ---
+let activeScanInput = null;
+let html5QrScanner = null;
+let scannerBusy = false;
+
+function openCameraScanner(btnEl) {
+    const parent = btnEl ? btnEl.closest('div') : null;
+    if (parent) {
+        activeScanInput = parent.querySelector('.serial-input');
+    }
+    const modal = document.getElementById('scanner-modal');
+    if (modal) modal.style.display = '';
+    openModal('scanner-modal');
+    setTimeout(startScanner, 300);
+}
+
+function closeCameraScanner() {
+    closeModal('scanner-modal');
+    const modal = document.getElementById('scanner-modal');
+    if (modal) modal.style.display = '';
+    stopAndClearScanner();
+}
+
+function closeModalScanner() {
+    closeCameraScanner();
+}
+
+function stopAndClearScanner(callback) {
+    if (!html5QrScanner) {
+        resetReaderDiv();
+        if (callback) callback();
+        return;
+    }
+    const scanner = html5QrScanner;
+    html5QrScanner = null;
+    scannerBusy = false;
+    scanner.stop()
+        .then(() => { try { scanner.clear(); } catch(e) {} })
+        .catch(() => { try { scanner.clear(); } catch(e) {} })
+        .finally(() => {
+            resetReaderDiv();
+            if (callback) callback();
+        });
+}
+
+function resetReaderDiv() {
+    const readerDiv = document.getElementById('barcode-reader');
+    if (readerDiv) readerDiv.innerHTML = '';
+    const cameraSelect = document.getElementById('scanner-camera-select');
+    if (cameraSelect) { cameraSelect.innerHTML = ''; cameraSelect.style.display = 'none'; }
+    const msgDiv = document.getElementById('scanner-result-msg');
+    if (msgDiv) msgDiv.textContent = '';
+}
+
+function startScanner() {
+    if (scannerBusy) return;
+    const msgDiv = document.getElementById('scanner-result-msg');
+
+    if (typeof Html5Qrcode === 'undefined') {
+        if (msgDiv) msgDiv.textContent = 'Scanner library not loaded. Please refresh.';
+        return;
+    }
+
+    // If there's an old instance, clean it up first then restart
+    if (html5QrScanner) {
+        stopAndClearScanner(() => startScanner());
+        return;
+    }
+
+    resetReaderDiv();
+    if (msgDiv) msgDiv.textContent = 'Starting camera...';
+    scannerBusy = true;
+
+    const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 150 },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+    };
+
+    const onScanSuccess = (decodedText) => {
+        if (activeScanInput) {
+            activeScanInput.value = decodedText;
+            activeScanInput.style.backgroundColor = '#dcfce7';
+            setTimeout(() => { if (activeScanInput) activeScanInput.style.backgroundColor = ''; }, 1500);
+        }
+        if (msgDiv) msgDiv.textContent = '✓ Scanned: ' + decodedText;
+        closeCameraScanner();
+    };
+
+    try {
+        html5QrScanner = new Html5Qrcode('barcode-reader');
+    } catch(e) {
+        scannerBusy = false;
+        if (msgDiv) msgDiv.textContent = 'Scanner init error. Please close and retry.';
+        return;
+    }
+
+    // Try to list cameras; fall back to facingMode if that fails
+    Html5Qrcode.getCameras()
+        .then(devices => {
+            const cameraSelect = document.getElementById('scanner-camera-select');
+            if (devices && devices.length > 1 && cameraSelect) {
+                cameraSelect.innerHTML = '';
+                devices.forEach((d, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = d.label || 'Camera ' + (i + 1);
+                    cameraSelect.appendChild(opt);
+                });
+                cameraSelect.style.display = 'block';
+            }
+
+            let cameraId = null;
+            if (devices && devices.length) {
+                const back = devices.find(d => /back|rear|environment/i.test(d.label || ''));
+                cameraId = (back || devices[0]).id;
+                if (cameraSelect && cameraId) cameraSelect.value = cameraId;
+            }
+
+            const doStart = cameraId
+                ? html5QrScanner.start(cameraId, config, onScanSuccess, () => {})
+                : html5QrScanner.start({ facingMode: 'environment' }, config, onScanSuccess, () => {});
+
+            return doStart;
+        })
+        .then(() => {
+            scannerBusy = false;
+            if (msgDiv) msgDiv.textContent = 'Camera active. Align barcode in the box.';
+        })
+        .catch(err => {
+            console.warn('Camera by ID failed, trying environment facingMode:', err);
+            // Try environment facingMode as fallback
+            if (!html5QrScanner) { scannerBusy = false; return; }
+            html5QrScanner.start({ facingMode: 'environment' }, config, onScanSuccess, () => {})
+                .then(() => {
+                    scannerBusy = false;
+                    if (msgDiv) msgDiv.textContent = 'Camera active. Align barcode in the box.';
+                })
+                .catch(err2 => {
+                    console.warn('Environment failed, trying user facingMode:', err2);
+                    if (!html5QrScanner) { scannerBusy = false; return; }
+                    html5QrScanner.start({ facingMode: 'user' }, config, onScanSuccess, () => {})
+                        .then(() => {
+                            scannerBusy = false;
+                            if (msgDiv) msgDiv.textContent = 'Front camera active. Align barcode in the box.';
+                        })
+                        .catch(err3 => {
+                            scannerBusy = false;
+                            const msg = err3.message || 'Camera unavailable';
+                            if (msgDiv) msgDiv.textContent = '⚠ Camera error: ' + msg;
+                            console.error('All camera start attempts failed:', err3);
+                        });
+                });
+        });
+}
+
+function switchScannerCamera(cameraId) {
+    if (!cameraId) return;
+    const msgDiv = document.getElementById('scanner-result-msg');
+    if (msgDiv) msgDiv.textContent = 'Switching camera...';
+    stopAndClearScanner(() => {
+        const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 150 },
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+        };
+        const onScanSuccess = (decodedText) => {
+            if (activeScanInput) {
+                activeScanInput.value = decodedText;
+                activeScanInput.style.backgroundColor = '#dcfce7';
+                setTimeout(() => { if (activeScanInput) activeScanInput.style.backgroundColor = ''; }, 1500);
+            }
+            if (msgDiv) msgDiv.textContent = '✓ Scanned: ' + decodedText;
+            closeCameraScanner();
+        };
+        html5QrScanner = new Html5Qrcode('barcode-reader');
+        html5QrScanner.start(cameraId, config, onScanSuccess, () => {})
+            .then(() => { if (msgDiv) msgDiv.textContent = 'Camera active. Align barcode in the box.'; })
+            .catch(e => { if (msgDiv) msgDiv.textContent = 'Camera switch failed: ' + (e.message || e); });
+    });
+}
+
+
+// ==========================================
+// STOCK MANAGEMENT MODULE
+// ==========================================
+
+function getStockQty(productId) {
+    if (!data.stockLevels) data.stockLevels = {};
+    return (data.stockLevels[productId] && data.stockLevels[productId].qty != null)
+        ? data.stockLevels[productId].qty : 0;
+}
+
+function setStockQty(productId, qty, note) {
+    if (!data.stockLevels) data.stockLevels = {};
+    data.stockLevels[productId] = {
+        qty: Math.max(0, qty),
+        lastUpdated: new Date().toISOString().split('T')[0],
+        note: note || ''
+    };
+}
+
+function getStockStatus(qty) {
+    if (qty <= 0) return { label: 'Out of Stock', color: '#ef4444', bg: '#fef2f2' };
+    if (qty <= 5) return { label: 'Low Stock', color: '#f59e0b', bg: '#fffbeb' };
+    return { label: 'In Stock', color: '#16a34a', bg: '#f0fdf4' };
+}
+
+function refreshStockTable(filter) {
+    const tbody = document.getElementById('stock-table');
+    if (!tbody) return;
+
+    const cur = data.company.currency || 'AED';
+    const q = (filter || '').toLowerCase().trim();
+    const products = (data.products || []).filter(p =>
+        !q || p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)
+    );
+
+    // Update stat cards
+    const total = (data.products || []).length;
+    const inStock = (data.products || []).filter(p => getStockQty(p.id) > 5).length;
+    const low = (data.products || []).filter(p => { const q2 = getStockQty(p.id); return q2 > 0 && q2 <= 5; }).length;
+    const out = (data.products || []).filter(p => getStockQty(p.id) <= 0).length;
+
+    const el = id => document.getElementById(id);
+    if (el('stock-stat-products')) el('stock-stat-products').textContent = total;
+    if (el('stock-stat-instock')) el('stock-stat-instock').textContent = inStock;
+    if (el('stock-stat-low')) el('stock-stat-low').textContent = low;
+    if (el('stock-stat-out')) el('stock-stat-out').textContent = out;
+
+    if (!products.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888;">No products found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = products.map(p => {
+        const qty = getStockQty(p.id);
+        const status = getStockStatus(qty);
+        const lastUpdated = data.stockLevels && data.stockLevels[p.id]
+            ? data.stockLevels[p.id].lastUpdated : '—';
+        return `<tr>
+            <td><strong>${p.name}</strong></td>
+            <td style="color:#64748b; font-size:0.85rem;">${p.description || '—'}</td>
+            <td>${cur} ${parseFloat(p.price || 0).toFixed(2)}</td>
+            <td style="text-align:center; font-weight:700; font-size:1rem;">${qty}</td>
+            <td style="text-align:center;">
+                <span style="background:${status.bg}; color:${status.color}; padding:3px 10px; border-radius:20px; font-size:0.78rem; font-weight:600;">${status.label}</span>
+            </td>
+            <td style="color:#64748b; font-size:0.85rem;">${lastUpdated}</td>
+            <td>
+                <button class="btn btn-secondary" style="font-size:0.78rem; padding:4px 10px;" onclick="openStockAdjustModal('${p.id}')">Adjust</button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function openStockAdjustModal(productId) {
+    const el = id => document.getElementById(id);
+    el('adj-product-id').value = '';
+    el('adj-product-name').value = '';
+    el('adj-current-qty').value = '';
+    el('adj-type').value = 'set';
+    el('adj-qty').value = '';
+    el('adj-reason').value = '';
+
+    if (productId) {
+        const p = (data.products || []).find(x => x.id === productId);
+        if (p) {
+            el('adj-product-id').value = p.id;
+            el('adj-product-name').value = p.name;
+            el('adj-current-qty').value = getStockQty(p.id);
+        }
+    } else {
+        // If called from general button, show product selector
+        const opts = (data.products || []).map(p =>
+            `<option value="${p.id}">${p.name} (Stock: ${getStockQty(p.id)})</option>`
+        ).join('');
+        el('adj-product-name').outerHTML = `<select id="adj-product-name" onchange="fillAdjProductInfo(this.value)">
+            <option value="">Select product...</option>${opts}</select>`;
+    }
+
+    openModal('stock-adjust-modal');
+}
+
+function fillAdjProductInfo(productId) {
+    const p = (data.products || []).find(x => x.id === productId);
+    if (p) {
+        document.getElementById('adj-product-id').value = p.id;
+        document.getElementById('adj-current-qty').value = getStockQty(p.id);
+    }
+}
+
+function saveStockAdjustment() {
+    const productId = document.getElementById('adj-product-id').value;
+    const adjType = document.getElementById('adj-type').value;
+    const adjQty = parseFloat(document.getElementById('adj-qty').value);
+    const reason = document.getElementById('adj-reason').value.trim();
+
+    if (!productId) { alert('Please select a product.'); return; }
+    if (isNaN(adjQty) || adjQty < 0) { alert('Please enter a valid quantity.'); return; }
+
+    const current = getStockQty(productId);
+    let newQty = current;
+    if (adjType === 'set') newQty = adjQty;
+    else if (adjType === 'add') newQty = current + adjQty;
+    else if (adjType === 'subtract') newQty = Math.max(0, current - adjQty);
+
+    setStockQty(productId, newQty, reason || 'Manual adjustment');
+    saveData();
+    refreshStockTable();
+    closeModal('stock-adjust-modal');
+}
+
+// ==========================================
+// PURCHASE INVOICE MODULE
+// ==========================================
+
+function openPurchaseInvoiceModal(piId) {
+    document.getElementById('pi-id').value = '';
+    document.getElementById('pi-number').value = '';
+    document.getElementById('pi-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('pi-reference').value = '';
+    document.getElementById('pi-notes').value = '';
+    document.getElementById('pi-line-items').innerHTML = '';
+    document.getElementById('pi-grand-total').textContent = (data.company.currency || 'AED') + ' 0.00';
+    document.getElementById('purchase-modal-title').textContent = 'New Purchase Invoice';
+
+    // Populate vendor dropdown
+    populateVendorDropdown();
+
+    if (piId) {
+        const pi = (data.purchaseInvoices || []).find(x => x.id === piId);
+        if (pi) {
+            document.getElementById('pi-id').value = pi.id;
+            document.getElementById('pi-number').value = pi.number;
+            document.getElementById('pi-date').value = pi.date;
+            // Select vendor by id, or try to match by name for old records
+            const vendorSel = document.getElementById('pi-vendor');
+            if (vendorSel) {
+                // Try match by vendorId first, else by name
+                const matchById = [...vendorSel.options].find(o => o.value === (pi.vendorId || ''));
+                const matchByName = [...vendorSel.options].find(o => o.text.startsWith(pi.vendor || ''));
+                if (matchById) matchById.selected = true;
+                else if (matchByName) matchByName.selected = true;
+            }
+            document.getElementById('pi-reference').value = pi.reference || '';
+            document.getElementById('pi-notes').value = pi.notes || '';
+            document.getElementById('purchase-modal-title').textContent = 'Edit Purchase Invoice';
+            (pi.items || []).forEach(item => addPurchaseLineItem(item));
+            recalcPurchaseTotal();
+            openModal('purchase-invoice-modal');
+            return;
+        }
+    }
+
+    addPurchaseLineItem();
+    openModal('purchase-invoice-modal');
+}
+
+function addPurchaseLineItem(existingItem) {
+    const tbody = document.getElementById('pi-line-items');
+    const cur = data.company.currency || 'AED';
+    const productOpts = (data.products || []).map(p =>
+        `<option value="${p.id}" data-price="${p.price || 0}" ${existingItem && existingItem.productId === p.id ? 'selected' : ''}>${p.name}</option>`
+    ).join('');
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>
+            <select style="width:100%; padding:5px; border:1px solid #e2e8f0; border-radius:4px; font-size:0.85rem;"
+                onchange="onPurchaseProductChange(this)">
+                <option value="">Select product...</option>
+                ${productOpts}
+            </select>
+        </td>
+        <td style="text-align:center;">
+            <input type="number" min="1" value="${existingItem ? existingItem.qty : 1}"
+                style="width:60px; padding:5px; border:1px solid #e2e8f0; border-radius:4px; text-align:center; font-size:0.85rem;"
+                oninput="recalcPurchaseTotal()">
+        </td>
+        <td style="text-align:right;">
+            <input type="number" min="0" step="0.01" value="${existingItem ? existingItem.unitCost : ''}"
+                placeholder="0.00"
+                style="width:90px; padding:5px; border:1px solid #e2e8f0; border-radius:4px; text-align:right; font-size:0.85rem;"
+                oninput="recalcPurchaseTotal()">
+        </td>
+        <td style="text-align:right; font-weight:600; font-size:0.9rem;" class="pi-row-total">${cur} 0.00</td>
+        <td style="text-align:center;">
+            <button type="button" style="background:none; border:none; color:#ef4444; font-size:1.1rem; cursor:pointer; padding:2px 6px;"
+                onclick="this.closest('tr').remove(); recalcPurchaseTotal();">&times;</button>
+        </td>`;
+    tbody.appendChild(row);
+    recalcPurchaseTotal();
+}
+
+function onPurchaseProductChange(sel) {
+    const price = parseFloat(sel.options[sel.selectedIndex]?.dataset?.price || 0);
+    const row = sel.closest('tr');
+    const costInput = row.querySelectorAll('input[type="number"]')[1];
+    if (costInput && !costInput.value) {
+        costInput.value = price.toFixed(2);
+    }
+    recalcPurchaseTotal();
+}
+
+function recalcPurchaseTotal() {
+    const cur = data.company.currency || 'AED';
+    let grand = 0;
+    document.querySelectorAll('#pi-line-items tr').forEach(row => {
+        const inputs = row.querySelectorAll('input[type="number"]');
+        const qty = parseFloat(inputs[0]?.value || 0);
+        const cost = parseFloat(inputs[1]?.value || 0);
+        const rowTotal = qty * cost;
+        grand += rowTotal;
+        const totalCell = row.querySelector('.pi-row-total');
+        if (totalCell) totalCell.textContent = cur + ' ' + rowTotal.toFixed(2);
+    });
+    const grandEl = document.getElementById('pi-grand-total');
+    if (grandEl) grandEl.textContent = cur + ' ' + grand.toFixed(2);
+}
+
+function savePurchaseInvoice() {
+    const piId = document.getElementById('pi-id').value;
+    const number = document.getElementById('pi-number').value.trim();
+    const date = document.getElementById('pi-date').value;
+    const vendorSel = document.getElementById('pi-vendor');
+    const vendorId = vendorSel ? vendorSel.value : '';
+    const vendorObj = (data.vendors || []).find(v => v.id === vendorId);
+    const vendor = vendorObj ? vendorObj.name : vendorId; // fallback to raw value
+    const reference = document.getElementById('pi-reference').value.trim();
+    const notes = document.getElementById('pi-notes').value.trim();
+
+    if (!number) { alert('Invoice number is required.'); return; }
+    if (!vendorId) { alert('Please select a vendor.'); return; }
+    if (!date) { alert('Date is required.'); return; }
+
+    const items = [];
+    let isValid = true;
+    document.querySelectorAll('#pi-line-items tr').forEach(row => {
+        const sel = row.querySelector('select');
+        const inputs = row.querySelectorAll('input[type="number"]');
+        const productId = sel ? sel.value : '';
+        const qty = parseFloat(inputs[0]?.value || 0);
+        const unitCost = parseFloat(inputs[1]?.value || 0);
+        if (!productId) { isValid = false; return; }
+        const product = (data.products || []).find(p => p.id === productId);
+        items.push({ productId, productName: product ? product.name : '', qty, unitCost, total: qty * unitCost });
+    });
+
+    if (!isValid || !items.length) {
+        alert('Please add at least one item with a product selected.');
+        return;
+    }
+
+    let grandTotal = items.reduce((s, i) => s + i.total, 0);
+
+    // If editing, reverse old stock changes first
+    if (piId) {
+        const old = (data.purchaseInvoices || []).find(x => x.id === piId);
+        if (old) {
+            (old.items || []).forEach(item => {
+                const cur = getStockQty(item.productId);
+                setStockQty(item.productId, Math.max(0, cur - item.qty), 'Purchase invoice edit reversal');
+            });
+        }
+    }
+
+    // Apply new stock increases
+    items.forEach(item => {
+        const cur = getStockQty(item.productId);
+        setStockQty(item.productId, cur + item.qty, `Purchase invoice: ${number}`);
+    });
+
+    const pi = { id: piId || Date.now().toString(), number, date, vendorId, vendor, reference, notes, items, grandTotal };
+
+    if (!Array.isArray(data.purchaseInvoices)) data.purchaseInvoices = [];
+    if (piId) {
+        const idx = data.purchaseInvoices.findIndex(x => x.id === piId);
+        if (idx >= 0) data.purchaseInvoices[idx] = pi;
+        else data.purchaseInvoices.push(pi);
+    } else {
+        data.purchaseInvoices.push(pi);
+    }
+
+    saveData();
+    refreshPurchaseTable();
+    refreshStockTable();
+    closeModal('purchase-invoice-modal');
+}
+
+function refreshPurchaseTable(filter) {
+    const tbody = document.getElementById('purchase-table');
+    if (!tbody) return;
+
+    const cur = data.company.currency || 'AED';
+    const q = (filter || '').toLowerCase().trim();
+    const list = (data.purchaseInvoices || []).filter(pi =>
+        !q ||
+        (pi.number || '').toLowerCase().includes(q) ||
+        (pi.vendor || '').toLowerCase().includes(q) ||
+        (pi.date || '').includes(q)
+    ).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">No purchase invoices yet</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = list.map(pi => `
+        <tr>
+            <td><strong>${pi.number}</strong></td>
+            <td>${pi.vendor}</td>
+            <td>${pi.date}</td>
+            <td style="color:#64748b; font-size:0.85rem;">${(pi.items || []).length} item(s)</td>
+            <td style="text-align:right; font-weight:600;">${cur} ${parseFloat(pi.grandTotal || 0).toFixed(2)}</td>
+            <td>
+                <button class="btn btn-secondary" style="font-size:0.78rem; padding:4px 8px;" onclick="openPurchaseInvoiceModal('${pi.id}')">Edit</button>
+                <button class="btn btn-danger" style="font-size:0.78rem; padding:4px 8px; margin-left:4px;" onclick="deletePurchaseInvoice('${pi.id}')">Delete</button>
+            </td>
+        </tr>`).join('');
+}
+
+function deletePurchaseInvoice(piId) {
+    if (!confirm('Delete this purchase invoice? Stock quantities added by this invoice will be reversed.')) return;
+    const pi = (data.purchaseInvoices || []).find(x => x.id === piId);
+    if (pi) {
+        (pi.items || []).forEach(item => {
+            const cur = getStockQty(item.productId);
+            setStockQty(item.productId, Math.max(0, cur - item.qty), `Purchase invoice deleted: ${pi.number}`);
+        });
+    }
+    data.purchaseInvoices = (data.purchaseInvoices || []).filter(x => x.id !== piId);
+    saveData();
+    refreshPurchaseTable();
+    refreshStockTable();
+}
+
+
+// ==========================================
+// VENDORS MODULE
+// ==========================================
+
+function openVendorModal(vendorId) {
+    const el = id => document.getElementById(id);
+    el('vendor-id').value = '';
+    el('vendor-name').value = '';
+    el('vendor-contact').value = '';
+    el('vendor-email').value = '';
+    el('vendor-phone').value = '';
+    el('vendor-address').value = '';
+    el('vendor-tax').value = '';
+    el('vendor-terms').value = '';
+    el('vendor-notes').value = '';
+    el('vendor-modal-title').textContent = 'New Vendor';
+
+    if (vendorId) {
+        const v = (data.vendors || []).find(x => x.id === vendorId);
+        if (v) {
+            el('vendor-id').value = v.id;
+            el('vendor-name').value = v.name || '';
+            el('vendor-contact').value = v.contact || '';
+            el('vendor-email').value = v.email || '';
+            el('vendor-phone').value = v.phone || '';
+            el('vendor-address').value = v.address || '';
+            el('vendor-tax').value = v.tax || '';
+            el('vendor-terms').value = v.terms || '';
+            el('vendor-notes').value = v.notes || '';
+            el('vendor-modal-title').textContent = 'Edit Vendor';
+        }
+    }
+    openModal('vendor-modal');
+}
+
+function saveVendor() {
+    const el = id => document.getElementById(id);
+    const vendorId = el('vendor-id').value;
+    const name = el('vendor-name').value.trim();
+
+    if (!name) { alert('Vendor name is required.'); return; }
+
+    if (!Array.isArray(data.vendors)) data.vendors = [];
+
+    const vendor = {
+        id: vendorId || Date.now().toString(),
+        name,
+        contact: el('vendor-contact').value.trim(),
+        email: el('vendor-email').value.trim(),
+        phone: el('vendor-phone').value.trim(),
+        address: el('vendor-address').value.trim(),
+        tax: el('vendor-tax').value.trim(),
+        terms: el('vendor-terms').value.trim(),
+        notes: el('vendor-notes').value.trim()
+    };
+
+    if (vendorId) {
+        const idx = data.vendors.findIndex(v => v.id === vendorId);
+        if (idx >= 0) data.vendors[idx] = vendor;
+        else data.vendors.push(vendor);
+    } else {
+        data.vendors.push(vendor);
+    }
+
+    saveData();
+    refreshVendorsTable();
+    populateVendorDropdown();
+    closeModal('vendor-modal');
+}
+
+function deleteVendor(vendorId) {
+    if (!confirm('Delete this vendor?')) return;
+    data.vendors = (data.vendors || []).filter(v => v.id !== vendorId);
+    saveData();
+    refreshVendorsTable();
+    populateVendorDropdown();
+}
+
+function refreshVendorsTable(filter) {
+    const tbody = document.getElementById('vendors-table');
+    if (!tbody) return;
+
+    if (!Array.isArray(data.vendors)) data.vendors = [];
+
+    const q = (filter || '').toLowerCase().trim();
+    const list = data.vendors.filter(v =>
+        !q ||
+        (v.name || '').toLowerCase().includes(q) ||
+        (v.contact || '').toLowerCase().includes(q) ||
+        (v.email || '').toLowerCase().includes(q) ||
+        (v.phone || '').toLowerCase().includes(q)
+    );
+
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888;">No vendors yet</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = list.map(v => `
+        <tr>
+            <td><strong>${v.name}</strong>${v.terms ? `<br><span style="font-size:0.78rem;color:#64748b;">Terms: ${v.terms}</span>` : ''}</td>
+            <td>${v.contact || '—'}</td>
+            <td>${v.email ? `<a href="mailto:${v.email}" style="color:#2563eb;">${v.email}</a>` : '—'}</td>
+            <td>${v.phone || '—'}</td>
+            <td style="font-size:0.82rem; color:#64748b;">${(v.address || '—').replace(/\n/g, ', ')}</td>
+            <td style="font-size:0.82rem;">${v.tax || '—'}</td>
+            <td>
+                <button class="btn btn-secondary" style="font-size:0.78rem; padding:4px 8px;" onclick="openVendorModal('${v.id}')">Edit</button>
+                <button class="btn btn-danger" style="font-size:0.78rem; padding:4px 8px; margin-left:4px;" onclick="deleteVendor('${v.id}')">Delete</button>
+            </td>
+        </tr>`).join('');
+}
+
+function populateVendorDropdown() {
+    const sel = document.getElementById('pi-vendor');
+    if (!sel || sel.tagName !== 'SELECT') return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Select vendor...</option>' +
+        (data.vendors || []).map(v =>
+            `<option value="${v.id}" ${v.id === current ? 'selected' : ''}>${v.name}${v.contact ? ' — ' + v.contact : ''}</option>`
+        ).join('');
 }
